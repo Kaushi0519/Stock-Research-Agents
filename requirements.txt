@@ -1,0 +1,5 @@
+anthropic
+yfinance
+requests
+python-dotenv
+pytest
