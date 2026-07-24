@@ -114,6 +114,45 @@ case (most reports probably won't have flagged claims) -- so
 notify_flagged_claims is a no-op, not a "nothing wrong" ping, when
 flagged_claims is empty.
 
+## Robinhood read-only guarantee: enforced in code, not convention
+`src/portfolio/guard.py` monkey-patches every function in
+`robin_stocks.robinhood.{orders,options,crypto}` matching an
+order/cancel/buy/sell name pattern to raise `ReadOnlyViolation` instead of
+calling Robinhood's API, at import time, before any other robin_stocks
+usage in this project. Verified empirically against the actually-installed
+robin_stocks version (not assumed from memory) -- inspected all 169
+functions in the `orders` submodule directly; confirmed every real
+write/order function is a name-pattern match, and that no `get_*` read
+function collides with the pattern. `options`/`crypto` submodules currently
+have zero write functions of their own (everything, including crypto/option
+orders, lives in `orders`), but are still swept for robustness against
+future robin_stocks versions moving things around.
+
+Deliberately over-broad pattern trade-off: a couple of harmless URL-builder
+helpers (e.g. `cancel_url`, which just returns a string) also get neutered
+as false positives. Accepted deliberately -- a blocked helper is a loud,
+obvious bug to fix; a missed write function is not recoverable after the
+fact. Verified with parametrized tests asserting real write functions raise
+and real read functions remain unpatched.
+
+## Portfolio integration degrades silently, doesn't hard-fail the pipeline
+`get_portfolio_context_for_ticker` catches all failures (missing
+credentials, login failure, network error) and returns `None` rather than
+raising, and `analyze_ticker` treats portfolio context as optional
+enrichment. Robinhood's unofficial API is inherently fragile (no public,
+supported endpoint, can break without warning), and MFA-enabled accounts
+can't complete a fully unattended login -- the research pipeline (Phases
+1-5) should keep working for users who never configure Robinhood at all,
+or on a run where this specific integration happens to be down.
+
+## Overweight is a stateless threshold check; "newly overweight" needs Phase 7's storage
+`is_position_overweight` checks a single snapshot against a fixed percent
+threshold (default 20%). The brief's "portfolio composition changes in a
+way the system flags as newly relevant" notification needs a *prior*
+snapshot to compare against -- that requires persisted history, which
+belongs with Phase 7's SQLite layer. Wiring the actual
+notify-on-newly-overweight event happens once that storage exists.
+
 ## Retrieval eval: real ingested data + keyword-verified recall@k, not vibes
 Built `src/rag/eval.py`: ingests real AAPL news + a real 10-K, runs 5 queries
 (3 news, 2 filing) against the actual indexed content, and checks whether an
