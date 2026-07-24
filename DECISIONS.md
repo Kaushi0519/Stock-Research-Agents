@@ -153,6 +153,30 @@ snapshot to compare against -- that requires persisted history, which
 belongs with Phase 7's SQLite layer. Wiring the actual
 notify-on-newly-overweight event happens once that storage exists.
 
+## Dashboard: server-rendered HTML forms, no JS framework
+Per the brief's own allowance ("even just clean markdown/PDF reports"), the
+dashboard is plain Jinja2-templated HTML with `<form>` POSTs (redirect
+afterward) -- no React/JS build step. This is a research/portfolio tool run
+locally, not a product with real users, so the extra frontend tooling
+wouldn't buy anything. A JSON API (`/api/*`) exists alongside the HTML pages
+for the same underlying operations, for programmatic use (e.g. a future
+scheduler in Phase 7.5).
+
+## SQLite stores the report minus `_retrieved_chunks`
+`db.save_report` strips `_retrieved_chunks` before persisting. A single
+10-K alone can produce 100+ chunks; keeping them in every stored report
+would bloat the database for data that's reproducible from Chroma on demand,
+whereas the claims/citations/critic verdicts are the actual durable record
+of what the agent concluded and why.
+
+## Newly-overweight detection: transition-based, not snapshot-based
+`check_and_record_portfolio_changes` (the piece deferred from Phase 6)
+compares each position's current weight against the last *recorded*
+snapshot, and only notifies on positions that just crossed INTO overweight
+territory -- a position that was already overweight last run and still is
+does not re-fire. Same anti-spam principle as the Phase 5 notification
+design: a repeat state is not new information.
+
 ## Retrieval eval: real ingested data + keyword-verified recall@k, not vibes
 Built `src/rag/eval.py`: ingests real AAPL news + a real 10-K, runs 5 queries
 (3 news, 2 filing) against the actual indexed content, and checks whether an

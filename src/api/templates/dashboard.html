@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Stock Research Agents</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    h1 { font-size: 1.5rem; }
+    h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: 0.3rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+    th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
+    .flagged { color: #b00020; font-weight: bold; }
+    form { display: inline; }
+    input[type=text] { padding: 0.3rem; }
+    button { padding: 0.3rem 0.7rem; cursor: pointer; }
+    .muted { color: #888; font-size: 0.9rem; }
+    .disclaimer { margin-top: 3rem; padding: 1rem; background: #fff8e1; border: 1px solid #ffe082; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>Stock Research Agents</h1>
+  <p class="muted">Research tool only -- not financial advice. Trade execution is always manual.</p>
+
+  <h2>Watchlist</h2>
+  <form action="/watchlist/add" method="post">
+    <input type="text" name="ticker" placeholder="TICKER" required>
+    <button type="submit">Add to watchlist</button>
+  </form>
+  <table>
+    {% for ticker in watchlist %}
+    <tr>
+      <td>{{ ticker }}</td>
+      <td>
+        <form action="/analyze/{{ ticker }}" method="post">
+          <button type="submit">Analyze</button>
+        </form>
+      </td>
+      <td>
+        <form action="/watchlist/{{ ticker }}/remove" method="post">
+          <button type="submit">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td class="muted">No tickers on your watchlist yet.</td></tr>
+    {% endfor %}
+  </table>
+
+  <h2>Portfolio</h2>
+  {% if portfolio.error %}
+    <p class="muted">Robinhood not configured or unavailable: {{ portfolio.error }}</p>
+  {% elif portfolio.positions %}
+    <p>Total equity: ${{ "%.2f"|format(portfolio.total_equity) }}</p>
+    <table>
+      <tr><th>Ticker</th><th>Quantity</th><th>Equity</th><th>% of Portfolio</th></tr>
+      {% for p in portfolio.positions %}
+      <tr>
+        <td>{{ p.ticker }}</td>
+        <td>{{ p.quantity }}</td>
+        <td>${{ "%.2f"|format(p.equity) }}</td>
+        <td>{{ p.percent_of_portfolio }}%</td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">No holdings (or Robinhood integration not set up).</p>
+  {% endif %}
+
+  <h2>Recent Reports</h2>
+  <table>
+    <tr><th>Ticker</th><th>Date</th><th>Claims</th><th>Flagged</th><th></th></tr>
+    {% for r in reports %}
+    <tr>
+      <td>{{ r.ticker }}</td>
+      <td>{{ r.created_at[:19] }}</td>
+      <td>{{ r.claim_count }}</td>
+      <td>{% if r.flagged_count > 0 %}<span class="flagged">{{ r.flagged_count }}</span>{% else %}0{% endif %}</td>
+      <td><a href="/reports/{{ r.id }}">View</a></td>
+    </tr>
+    {% else %}
+    <tr><td class="muted">No reports yet. Analyze a ticker from your watchlist above.</td></tr>
+    {% endfor %}
+  </table>
+
+  <div class="disclaimer">
+    This is a research tool built as a portfolio project, not financial advice.
+    It never places trades -- all execution is manual, and the Critic Agent's
+    flagged claims should be treated as a reason to dig deeper, not ignored.
+  </div>
+</body>
+</html>
