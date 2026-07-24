@@ -32,8 +32,8 @@ def _run_analysis(ticker: str) -> int:
 
     notifier = _get_notifier()
     if notifier:
-        notify_report_ready(notifier, report)
-        notify_flagged_claims(notifier, report)
+        notify_report_ready(notifier, report, report_id)
+        notify_flagged_claims(notifier, report, report_id)
 
     return report_id
 

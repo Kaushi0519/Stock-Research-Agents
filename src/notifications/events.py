@@ -1,3 +1,4 @@
+from src.config import DASHBOARD_BASE_URL
 from src.notifications.notifier import Notifier
 from src.notifications.significance import (
     DEFAULT_NEWS_VOLUME_THRESHOLD,
@@ -8,7 +9,16 @@ from src.notifications.significance import (
 )
 
 
-def notify_report_ready(notifier: Notifier, report: dict) -> bool:
+def _report_url(report_id: int = None) -> str:
+    """Builds a tappable link back to a report, or None if either the
+    report id or DASHBOARD_BASE_URL isn't available -- ntfy just omits the
+    click action in that case rather than sending a broken link."""
+    if not DASHBOARD_BASE_URL or report_id is None:
+        return None
+    return f"{DASHBOARD_BASE_URL.rstrip('/')}/reports/{report_id}"
+
+
+def notify_report_ready(notifier: Notifier, report: dict, report_id: int = None) -> bool:
     """Always fires when a new report finishes -- this isn't threshold-gated,
     since "a report you asked for is ready" is inherently something you want
     to know about, not noise to filter."""
@@ -21,10 +31,10 @@ def notify_report_ready(notifier: Notifier, report: dict) -> bool:
     if flagged_count:
         message += f" {flagged_count} flagged as unsupported -- review before trusting."
 
-    return notifier.send(title, message, priority="default")
+    return notifier.send(title, message, priority="default", click_url=_report_url(report_id))
 
 
-def notify_flagged_claims(notifier: Notifier, report: dict) -> bool:
+def notify_flagged_claims(notifier: Notifier, report: dict, report_id: int = None) -> bool:
     """Only fires if the Critic Agent actually flagged something -- a clean
     report (no flags) sends no notification, since a second "everything's
     fine" ping after notify_report_ready would just be noise."""
@@ -39,7 +49,7 @@ def notify_flagged_claims(notifier: Notifier, report: dict) -> bool:
         lines.append(f"...and {len(flagged) - 3} more")
     message = "\n".join(lines)
 
-    return notifier.send(title, message, priority="high")
+    return notifier.send(title, message, priority="high", click_url=_report_url(report_id))
 
 
 def notify_significant_price_move(

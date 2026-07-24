@@ -68,10 +68,10 @@ def run_watchlist_check(
         try:
             report = analyze_ticker(ticker)
             report = critique_report(report)
-            save_report(report)
+            report_id = save_report(report)
             if notifier:
-                notify_report_ready(notifier, report)
-                notify_flagged_claims(notifier, report)
+                notify_report_ready(notifier, report, report_id)
+                notify_flagged_claims(notifier, report, report_id)
             analyzed.append(ticker)
         except Exception:
             logger.exception("Failed to analyze %s during scheduled run", ticker)
