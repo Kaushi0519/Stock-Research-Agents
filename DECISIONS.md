@@ -29,6 +29,31 @@ with a 50-word (~17%) overlap balances chunk count (a 10-K produces roughly
 100-150 chunks) against not losing context at chunk boundaries. May revisit
 with paragraph-aware chunking if eval quality demands it.
 
+## Analysis Agent: programmatic retrieval + structured output, not a tool-use loop
+Unlike the Phase 1 data collection agent (which uses a tool-use loop so Claude
+decides what to fetch), the Analysis Agent retrieves context itself with a
+fixed set of Chroma queries (news + filing risk/financials) before making one
+LLM call. This is the more standard RAG pattern: retrieval is a
+retrieval-augmentation step under the app's control, not something the model
+decides ad hoc, since the report generation step needs the exact retrieved
+chunks already in context to cite them.
+
+## Analysis Agent output: structured JSON claims with per-claim source_ids
+The report is generated via `output_config.format` (structured outputs) as a
+list of individual claims, each tagged with which retrieved chunk id(s)
+support it, or an empty list if the claim is Claude's own synthesis/inference.
+This makes grounded-vs-ungrounded explicit at generation time (not just
+prose citations Claude might format inconsistently), and gives Phase 4's
+Critic Agent a directly checkable structure: for each non-empty source_ids
+claim, verify the claim against that exact chunk's text.
+
+## Model choice: Sonnet for the Analysis Agent, Haiku for data collection
+The data collection agent (Phase 1) mostly routes between three well-defined
+tools -- Haiku is plenty. The Analysis Agent does the actual synthesis and
+citation judgment calls (deciding what's grounded vs. inferred) that the
+whole "not just plausible-sounding, but actually checkable" premise of this
+project depends on, so it uses Sonnet 5 despite the higher per-token cost.
+
 ## Retrieval eval: real ingested data + keyword-verified recall@k, not vibes
 Built `src/rag/eval.py`: ingests real AAPL news + a real 10-K, runs 5 queries
 (3 news, 2 filing) against the actual indexed content, and checks whether an
