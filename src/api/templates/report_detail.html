@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ report.ticker }} Report - Stock Research Agents</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    a.back { display: inline-block; margin-bottom: 1rem; }
+    pre { white-space: pre-wrap; font-family: -apple-system, sans-serif; line-height: 1.5; }
+    .flagged-box { margin-top: 2rem; padding: 1rem; background: #fdecea; border: 1px solid #f5c6cb; }
+    .flagged-box h2 { margin-top: 0; color: #b00020; }
+    .flagged-item { margin-bottom: 0.8rem; }
+    .muted { color: #888; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <a class="back" href="/">&larr; Back to dashboard</a>
+  <p class="muted">Generated {{ report.created_at[:19] }}</p>
+
+  <pre>{{ rendered }}</pre>
+
+  {% if report.flagged_claims %}
+  <div class="flagged-box">
+    <h2>Critic Agent: Unsupported Claims</h2>
+    <p>These claims were checked against their cited source text and judged NOT supported. Treat them with skepticism or verify manually.</p>
+    {% for f in report.flagged_claims %}
+    <div class="flagged-item">
+      <strong>&bull; {{ f.claim_text }}</strong><br>
+      <span class="muted">{{ f.explanation }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</body>
+</html>
