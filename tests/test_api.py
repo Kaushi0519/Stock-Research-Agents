@@ -54,6 +54,20 @@ def test_report_detail_page_not_found(monkeypatch):
     assert response.status_code == 404
 
 
+def test_watchlist_add_page_accepts_real_form_encoded_post(monkeypatch):
+    """Regression test: a real browser <form method="post"> submission sends
+    application/x-www-form-urlencoded body data, not a query string. This
+    caught a real bug where the handler expected `ticker` as a query param
+    and the actual HTML dashboard form would have silently 422'd."""
+    added = []
+    monkeypatch.setattr(main.db, "add_to_watchlist", lambda ticker: added.append(ticker))
+
+    response = client.post("/watchlist/add", data={"ticker": "AAPL"}, follow_redirects=False)
+
+    assert response.status_code == 303
+    assert added == ["AAPL"]
+
+
 def test_analyze_page_redirects_to_report(monkeypatch):
     monkeypatch.setattr(main, "analyze_ticker", lambda ticker: {"ticker": ticker, "claims": [], "flagged_claims": []})
     monkeypatch.setattr(main, "critique_report", lambda report: report)

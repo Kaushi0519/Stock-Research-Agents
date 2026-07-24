@@ -177,6 +177,66 @@ territory -- a position that was already overweight last run and still is
 does not re-fire. Same anti-spam principle as the Phase 5 notification
 design: a repeat state is not new information.
 
+## Docker Compose: chroma, backend, scheduler as separate services, one shared image
+`backend` (FastAPI) and `scheduler` (watchlist loop) are built from the same
+Dockerfile/image -- same codebase and dependencies -- with `command:`
+overridden per service in docker-compose.yml, rather than two Dockerfiles.
+`chroma` runs as its own container (the official `chromadb/chroma` image)
+so both `backend` and `scheduler` share one vector store instead of each
+keeping a disconnected local copy -- this required switching
+`src/rag/store.py` from an embedded `PersistentClient` to `HttpClient` when
+`CHROMA_HOST` is set (falls back to embedded mode for local dev without
+Docker, so a quick local test still doesn't need a separate Chroma process).
+Similarly, `DB_PATH` became an env-var override so the SQLite file can live
+on a shared named volume both containers write to, instead of each having
+its own disconnected file.
+
+SQLite via a shared bind/named volume across two containers is a known
+soft spot -- file-locking based concurrency isn't as robust as a real
+database server under true concurrent writes, especially across container
+filesystem drivers. Accepted for this project's actual usage pattern
+(on-demand writes from the dashboard, periodic writes from the scheduler,
+not simultaneous high-frequency writes from many clients), but noted
+honestly as a real limitation, not glossed over.
+
+## Real bugs Docker testing caught (not left as untested assumptions)
+Actually building and running the stack (not just writing config) caught
+three real issues that mocked unit tests couldn't have:
+1. The scheduler container never called `db.init_db()` -- only
+   `src/api/main.py` did, at backend's import time. A scheduler container
+   starting against a fresh DB volume crashed with "no such table:
+   watchlist." Fixed by calling `init_db()` in `src/scheduler/loop.py`
+   too (safe no-op if the backend already created the schema).
+2. `/watchlist/add`'s handler declared `ticker: str` with no `Form(...)`
+   annotation, so FastAPI expected it as a query parameter. The actual
+   HTML `<form method="post">` on the dashboard sends
+   `application/x-www-form-urlencoded` body data -- the real "Add to
+   watchlist" button would have silently 422'd. Caught by testing with an
+   actual form-encoded POST (`curl -d`), not just the JSON-shaped API
+   tests. Fixed with `Form(...)`, which also surfaced a missing
+   `python-multipart` dependency (FastAPI's own `Form(...)` requirement).
+3. Chroma's default embedding model computation happens CLIENT-side even
+   when talking to the `chroma` service over `HttpClient` (the server only
+   stores/indexes vectors, it doesn't embed) -- confirmed by watching
+   `backend` download the ~79MB ONNX model on first ingest. Without a
+   shared cache volume, `backend` and `scheduler` would each redundantly
+   download it independently on first use; added a shared
+   `chroma_embedding_cache` volume to fix this.
+
+## Robinhood MFA + unattended scheduler: a real, observed limitation, not just documented
+Actually ran the scheduler against a fresh Docker deployment (its own empty
+`robinhood_session` volume, no cached token) and watched it hang
+indefinitely waiting for a phone-approval push nobody was there to approve
+-- empirically confirming the limitation flagged during Phase 6, not just a
+theoretical caveat. Mitigation (also empirically verified): the
+`robinhood_session` named volume needs to be primed with one real,
+manually-approved login before unattended scheduler runs will work --
+either by running the backend once and completing the approval, or by
+copying an already-authenticated `~/.tokens/robinhood.pickle` into the
+volume. This is a one-time manual setup step, not something the code can
+work around -- Robinhood's device-approval flow requires a human. Will be
+called out clearly in Phase 8's README/limitations section.
+
 ## Retrieval eval: real ingested data + keyword-verified recall@k, not vibes
 Built `src/rag/eval.py`: ingests real AAPL news + a real 10-K, runs 5 queries
 (3 news, 2 filing) against the actual indexed content, and checks whether an

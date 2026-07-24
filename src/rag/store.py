@@ -1,3 +1,5 @@
+import os
+
 import chromadb
 
 CHROMA_PERSIST_DIR = "chroma_db"
@@ -5,7 +7,21 @@ COLLECTION_NAME = "stock_research_docs"
 
 
 def get_collection(persist_directory: str = CHROMA_PERSIST_DIR):
-    client = chromadb.PersistentClient(path=persist_directory)
+    """Local dev (no CHROMA_HOST set): embedded PersistentClient writing to
+    a local directory -- no extra service to run for a quick local test.
+
+    Docker (CHROMA_HOST set by docker-compose): HttpClient talking to the
+    separate `chroma` container/service, so the backend and scheduler
+    containers share one vector store instead of each keeping its own
+    disconnected local copy.
+    """
+    chroma_host = os.environ.get("CHROMA_HOST")
+    if chroma_host:
+        chroma_port = int(os.environ.get("CHROMA_PORT", "8000"))
+        client = chromadb.HttpClient(host=chroma_host, port=chroma_port)
+    else:
+        client = chromadb.PersistentClient(path=persist_directory)
+
     return client.get_or_create_collection(name=COLLECTION_NAME)
 
 

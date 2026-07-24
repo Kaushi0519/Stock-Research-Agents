@@ -1,0 +1,58 @@
+services:
+  chroma:
+    image: chromadb/chroma:latest
+    volumes:
+      - chroma_data:/chroma/chroma
+    restart: unless-stopped
+
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - CHROMA_HOST=chroma
+      - CHROMA_PORT=8000
+      - DB_PATH=/app/data/research.db
+    volumes:
+      - app_data:/app/data
+      # Persists the Robinhood session token (robin_stocks writes to
+      # ~/.tokens by default) across container restarts, so a restart
+      # doesn't force a fresh phone-approval prompt on every boot.
+      - robinhood_session:/root/.tokens
+      # Chroma's default embedding model runs CLIENT-side even when talking
+      # to the `chroma` service over HTTP (the server only stores vectors,
+      # it doesn't embed) -- shared so backend and scheduler don't each
+      # independently download the ~79MB ONNX model on first use.
+      - chroma_embedding_cache:/root/.cache/chroma
+    depends_on:
+      - chroma
+    restart: unless-stopped
+
+  scheduler:
+    build: .
+    command: ["python3", "-m", "src.scheduler.loop"]
+    env_file:
+      - .env
+    environment:
+      - CHROMA_HOST=chroma
+      - CHROMA_PORT=8000
+      - DB_PATH=/app/data/research.db
+      - SCHEDULER_INTERVAL_SECONDS=3600
+    volumes:
+      # Shares the SAME SQLite file and Chroma data as `backend` -- one
+      # watchlist, one set of reports, one vector store, whether triggered
+      # from the dashboard or the scheduler.
+      - app_data:/app/data
+      - robinhood_session:/root/.tokens
+      - chroma_embedding_cache:/root/.cache/chroma
+    depends_on:
+      - chroma
+    restart: unless-stopped
+
+volumes:
+  chroma_data:
+  app_data:
+  robinhood_session:
+  chroma_embedding_cache:

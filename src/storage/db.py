@@ -1,8 +1,9 @@
 import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 
-DB_PATH = "research.db"
+DB_PATH = os.environ.get("DB_PATH", "research.db")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS reports (
