@@ -6,3 +6,4 @@ pytest
 pandas
 chromadb
 beautifulsoup4
+robin_stocks
