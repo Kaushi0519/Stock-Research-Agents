@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -70,7 +70,7 @@ def analyze_page(ticker: str):
 
 
 @app.post("/watchlist/add")
-def watchlist_add_page(ticker: str):
+def watchlist_add_page(ticker: str = Form(...)):
     db.add_to_watchlist(ticker)
     return RedirectResponse(url="/", status_code=303)
 
