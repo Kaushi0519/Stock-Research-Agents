@@ -54,6 +54,27 @@ citation judgment calls (deciding what's grounded vs. inferred) that the
 whole "not just plausible-sounding, but actually checkable" premise of this
 project depends on, so it uses Sonnet 5 despite the higher per-token cost.
 
+## Critic Agent: judge traceability to cited evidence, not plausibility
+The Critic Agent's system prompt explicitly instructs it to judge whether a
+claim is stated in its cited evidence text, not whether the claim sounds
+true or plausible in general. This is the whole point of the critic step --
+a claim can be real-world-true and still get flagged if the specific
+retrieved chunk it cited doesn't actually say it, and a surprising-sounding
+claim should pass if the evidence really does support it. Verified with a
+real-model eval (`tests/test_critic_eval.py`) covering directly-supported,
+contradicted, plausible-but-unstated, and overreach-beyond-evidence cases --
+all 4 judged correctly. In a real run against AAPL, the critic also caught a
+genuine subtle error the Analysis Agent made: it conflated two different
+comparisons in a 10-K's tax-rate discussion (factors explaining the gap vs.
+the 21% statutory rate, misattributed to the year-over-year change instead).
+
+## Critic Agent reuses the Analysis Agent's exact retrieved chunks
+`critique_report` reads `report["_retrieved_chunks"]` (the same chunk
+objects the Analysis Agent retrieved and cited from) rather than re-querying
+Chroma. A fresh retrieval could return different chunks than what the claim
+was actually generated from, which would make the critic check against the
+wrong evidence -- so the critic must see exactly what the analysis agent saw.
+
 ## Retrieval eval: real ingested data + keyword-verified recall@k, not vibes
 Built `src/rag/eval.py`: ingests real AAPL news + a real 10-K, runs 5 queries
 (3 news, 2 filing) against the actual indexed content, and checks whether an
