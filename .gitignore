@@ -8,3 +8,4 @@ data/raw/*
 chroma_db/
 *.sqlite3
 *.db
+.claude/settings.local.json
