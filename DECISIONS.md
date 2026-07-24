@@ -75,6 +75,45 @@ Chroma. A fresh retrieval could return different chunks than what the claim
 was actually generated from, which would make the critic check against the
 wrong evidence -- so the critic must see exactly what the analysis agent saw.
 
+## Notifier abstraction + ntfy.sh, per original plan
+`Notifier` is an ABC with a single `send(title, message, priority)` method;
+`NtfyNotifier` is the only concrete implementation so far. Swapping in
+Pushover or email later means writing one new class, not touching any
+calling code, since `events.py` only ever depends on the `Notifier`
+interface.
+
+SECURITY NOTE (also documented in the class docstring): ntfy.sh's public
+server has no access control by topic -- anyone who knows the topic string
+can subscribe and read notifications. `NTFY_TOPIC` must be a random,
+unguessable string (not something descriptive like "stock-alerts"), and is
+gitignored via `.env` like the other secrets.
+
+## Significance thresholds: numeric price move %, and news volume count
+Price: a single-day move >= a configurable percent threshold (default 5%),
+checked in EITHER direction via `abs()` -- a big drop is just as significant
+as a big gain, and using the signed value instead would silently miss
+crashes. Missing/insufficient price data fails closed (not significant, no
+notification) rather than failing open, since a false negative (missed
+alert) is a much smaller problem than spamming on bad data.
+
+News: rather than judging a single headline's importance semantically
+(which would need either a brittle hand-tuned keyword list or an extra LLM
+call per headline), "significant" is defined as a volume spike -- N or more
+new articles in a time window (default 3 in 24h). This is a coarser signal
+than true semantic significance but is a concrete, real, testable threshold,
+consistent with the project's "don't want false-alarm spam" requirement.
+Documented limitation: a real news event with only 1-2 articles about it
+(quieter coverage) won't trigger this -- a future iteration could add an
+LLM-based headline classifier as a complementary, not replacement, signal.
+
+## notify_report_ready always fires; notify_flagged_claims only fires if something was flagged
+A finished report is inherently something the user asked for and wants to
+know about, so it's not threshold-gated. But a *second* notification saying
+"nothing was flagged" on top of that would be pure noise for the common
+case (most reports probably won't have flagged claims) -- so
+notify_flagged_claims is a no-op, not a "nothing wrong" ping, when
+flagged_claims is empty.
+
 ## Retrieval eval: real ingested data + keyword-verified recall@k, not vibes
 Built `src/rag/eval.py`: ingests real AAPL news + a real 10-K, runs 5 queries
 (3 news, 2 filing) against the actual indexed content, and checks whether an
