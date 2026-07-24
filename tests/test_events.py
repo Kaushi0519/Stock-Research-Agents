@@ -43,6 +43,36 @@ def test_notify_report_ready_mentions_flagged_count():
     assert "1 flagged as unsupported" in message
 
 
+@patch("src.notifications.events.DASHBOARD_BASE_URL", "http://192.168.1.5:8000")
+def test_notify_report_ready_includes_click_url_when_dashboard_base_url_set():
+    notifier = _fake_notifier()
+    report = {"ticker": "AAPL", "claims": [], "flagged_claims": []}
+
+    notify_report_ready(notifier, report, report_id=7)
+
+    assert notifier.send.call_args.kwargs["click_url"] == "http://192.168.1.5:8000/reports/7"
+
+
+@patch("src.notifications.events.DASHBOARD_BASE_URL", None)
+def test_notify_report_ready_click_url_is_none_without_dashboard_base_url():
+    notifier = _fake_notifier()
+    report = {"ticker": "AAPL", "claims": [], "flagged_claims": []}
+
+    notify_report_ready(notifier, report, report_id=7)
+
+    assert notifier.send.call_args.kwargs["click_url"] is None
+
+
+@patch("src.notifications.events.DASHBOARD_BASE_URL", "http://192.168.1.5:8000")
+def test_notify_report_ready_click_url_is_none_without_report_id():
+    notifier = _fake_notifier()
+    report = {"ticker": "AAPL", "claims": [], "flagged_claims": []}
+
+    notify_report_ready(notifier, report)
+
+    assert notifier.send.call_args.kwargs["click_url"] is None
+
+
 def test_notify_flagged_claims_does_not_fire_when_nothing_flagged():
     """The core anti-spam case: a clean report should NOT trigger a second
     notification on top of notify_report_ready."""

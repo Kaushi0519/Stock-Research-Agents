@@ -12,8 +12,12 @@ class Notifier(ABC):
     """
 
     @abstractmethod
-    def send(self, title: str, message: str, priority: str = "default") -> bool:
-        """Send a notification. Returns True on success, False on failure."""
+    def send(
+        self, title: str, message: str, priority: str = "default", click_url: str = None
+    ) -> bool:
+        """Send a notification. `click_url`, if given, is opened when the
+        notification itself is tapped. Returns True on success, False on
+        failure."""
         raise NotImplementedError
 
 
@@ -35,15 +39,21 @@ class NtfyNotifier(Notifier):
         self.topic = topic
         self.base_url = base_url.rstrip("/")
 
-    def send(self, title: str, message: str, priority: str = "default") -> bool:
+    def send(
+        self, title: str, message: str, priority: str = "default", click_url: str = None
+    ) -> bool:
+        headers = {
+            "Title": title,
+            "Priority": self._PRIORITY_MAP.get(priority, "default"),
+        }
+        if click_url:
+            headers["Click"] = click_url
+
         try:
             response = requests.post(
                 f"{self.base_url}/{self.topic}",
                 data=message.encode("utf-8"),
-                headers={
-                    "Title": title,
-                    "Priority": self._PRIORITY_MAP.get(priority, "default"),
-                },
+                headers=headers,
                 timeout=10,
             )
             response.raise_for_status()

@@ -29,6 +29,26 @@ def test_ntfy_notifier_send_success(mock_post):
 
 
 @patch("src.notifications.notifier.requests.post")
+def test_ntfy_notifier_send_with_click_url_sets_click_header(mock_post):
+    mock_post.return_value = MagicMock()
+
+    notifier = NtfyNotifier(topic="test-topic-abc123")
+    notifier.send("Title", "Message", click_url="http://192.168.1.5:8000/reports/7")
+
+    assert mock_post.call_args.kwargs["headers"]["Click"] == "http://192.168.1.5:8000/reports/7"
+
+
+@patch("src.notifications.notifier.requests.post")
+def test_ntfy_notifier_send_without_click_url_omits_click_header(mock_post):
+    mock_post.return_value = MagicMock()
+
+    notifier = NtfyNotifier(topic="test-topic-abc123")
+    notifier.send("Title", "Message")
+
+    assert "Click" not in mock_post.call_args.kwargs["headers"]
+
+
+@patch("src.notifications.notifier.requests.post")
 def test_ntfy_notifier_send_unknown_priority_falls_back_to_default(mock_post):
     mock_post.return_value = MagicMock()
 
