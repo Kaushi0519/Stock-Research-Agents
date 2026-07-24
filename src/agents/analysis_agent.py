@@ -34,6 +34,11 @@ Rules:
 - Cover price performance, recent news/catalysts, and material risks (from
   filings) as separate sections, plus one overall_assessment section with
   your synthesis.
+- If PORTFOLIO CONTEXT is provided, factor the user's existing position
+  (size, concentration) into your overall_assessment claims -- e.g. whether
+  this recommendation should be tempered by existing concentration risk.
+  Portfolio-context claims are your own synthesis (no source chunk backs
+  them), so leave their source_ids empty.
 """
 
 REPORT_SCHEMA = {
@@ -105,13 +110,24 @@ def _format_context(chunks: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def analyze_ticker(ticker: str) -> dict:
+def analyze_ticker(ticker: str, include_portfolio_context: bool = True) -> dict:
     print(f"Ingesting latest data for {ticker}...")
     ingest_ticker(ticker)
 
     price_data = get_price_history(ticker)
     retrieved_chunks = _retrieve_context(ticker)
     context_text = _format_context(retrieved_chunks)
+
+    portfolio_note = ""
+    if include_portfolio_context:
+        # Optional enrichment -- degrades silently if Robinhood isn't
+        # configured or the (unofficial, fragile) integration is down, so
+        # analysis still works without it.
+        from src.portfolio.context import get_portfolio_context_for_ticker
+
+        portfolio_context = get_portfolio_context_for_ticker(ticker)
+        if portfolio_context:
+            portfolio_note = f"\n\nPORTFOLIO CONTEXT:\n{portfolio_context}"
 
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -121,7 +137,7 @@ PRICE DATA:
 {json.dumps(price_data, indent=2)}
 
 RETRIEVED SOURCES:
-{context_text}
+{context_text}{portfolio_note}
 
 Write the research report as claims, per the rules in your system prompt."""
 
