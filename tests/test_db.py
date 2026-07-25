@@ -86,3 +86,28 @@ def test_portfolio_snapshot_save_and_get_latest(tmp_path):
     newest = db.get_latest_portfolio_snapshot("AAPL", db_path=path)
 
     assert newest["percent_of_portfolio"] == 25.0
+
+
+def test_state_flag_defaults_to_false(tmp_path):
+    path = _fresh_db_path(tmp_path)
+    assert db.get_state_flag("some_flag", db_path=path) is False
+
+
+def test_state_flag_set_and_get(tmp_path):
+    path = _fresh_db_path(tmp_path)
+
+    db.set_state_flag("some_flag", True, db_path=path)
+    assert db.get_state_flag("some_flag", db_path=path) is True
+
+    db.set_state_flag("some_flag", False, db_path=path)
+    assert db.get_state_flag("some_flag", db_path=path) is False
+
+
+def test_state_flag_upsert_does_not_duplicate_rows(tmp_path):
+    path = _fresh_db_path(tmp_path)
+
+    db.set_state_flag("some_flag", True, db_path=path)
+    db.set_state_flag("some_flag", True, db_path=path)
+    db.set_state_flag("some_flag", False, db_path=path)
+
+    assert db.get_state_flag("some_flag", db_path=path) is False
