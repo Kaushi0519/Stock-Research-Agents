@@ -27,6 +27,14 @@ CREATE TABLE IF NOT EXISTS portfolio_snapshots (
     percent_of_portfolio REAL NOT NULL,
     equity REAL NOT NULL
 );
+
+-- Small generic key/value store for cross-run state that doesn't warrant
+-- its own table, e.g. "have we already sent the credit-exhaustion alert
+-- so we don't repeat it every scheduler tick."
+CREATE TABLE IF NOT EXISTS system_state (
+    key TEXT PRIMARY KEY,
+    value INTEGER NOT NULL
+);
 """
 
 
@@ -135,3 +143,18 @@ def save_portfolio_snapshot(
             (_now(), ticker.upper(), percent_of_portfolio, equity),
         )
         return cursor.lastrowid
+
+
+def get_state_flag(key: str, db_path: str = DB_PATH) -> bool:
+    with _connect(db_path) as conn:
+        row = conn.execute("SELECT value FROM system_state WHERE key = ?", (key,)).fetchone()
+        return bool(row and row["value"])
+
+
+def set_state_flag(key: str, value: bool, db_path: str = DB_PATH) -> None:
+    with _connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO system_state (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, int(value)),
+        )

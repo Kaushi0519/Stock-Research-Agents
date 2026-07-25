@@ -1,3 +1,32 @@
+## Anthropic credit-exhaustion: detect specifically, alert once, re-arm on recovery
+Prior behavior when the prepaid API balance hit $0: the scheduler caught the
+resulting exception generically, logged it, and silently kept "running"
+forever without ever producing a useful result -- no notification, nothing
+visible short of manually reading container logs. `is_insufficient_credit_error`
+(`src/agents/errors.py`) distinguishes this specific failure (a 400 response
+whose message mentions "credit balance") from other API failures (rate
+limits, server errors) that should be handled differently, since a scheduler
+retrying a transient 5xx is reasonable but retrying an empty wallet every
+hour forever is not.
+
+On detection: alert once via a small SQLite key/value flag
+(`system_state` table) rather than every tick -- otherwise an exhausted
+balance would spam a notification every single hour indefinitely, exactly
+the false-alarm-spam failure mode this project's notification design has
+avoided everywhere else. The flag clears automatically the next time an
+analysis actually succeeds, so a later, unrelated outage still gets its own
+fresh alert rather than staying permanently suppressed. The scheduler also
+stops attempting the rest of the watchlist for that tick once this is
+detected, since every remaining call would fail identically -- no reason to
+burn through them. The dashboard path returns a 503 with an actionable
+message instead of an opaque 500 for the same failure.
+
+Not verified end-to-end against a real drained balance (would require
+actually spending down real remaining credit to test) -- relies on unit
+tests using `MagicMock(spec=anthropic.APIStatusError)` to simulate the real
+exception type, a real gap in verification depth compared to other features
+in this project, noted honestly rather than glossed over.
+
 ## News source: Finnhub over NewsAPI.org
 Chose Finnhub because it has a ticker-scoped news endpoint (news filtered by
 company already) rather than NewsAPI's general keyword search, and its free

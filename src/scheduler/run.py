@@ -2,6 +2,7 @@ import logging
 
 from src.agents.analysis_agent import analyze_ticker
 from src.agents.critic_agent import critique_report
+from src.agents.errors import alert_credit_exhausted, clear_credit_alert, is_insufficient_credit_error
 from src.config import NTFY_TOPIC
 from src.notifications.events import (
     notify_flagged_claims,
@@ -42,9 +43,12 @@ def run_watchlist_check(
     watching for something worth reporting, not re-analyzing everything on
     a timer regardless of whether anything happened.
 
-    One ticker failing (network blip, API hiccup) is logged and skipped,
-    not allowed to crash the rest of the run -- this runs unattended, so a
-    single bad ticker shouldn't take down monitoring for the whole list.
+    One ticker failing for an ordinary reason (network blip, API hiccup) is
+    logged and skipped, not allowed to crash the rest of the run. But if the
+    Anthropic API is rejecting calls for insufficient credit specifically,
+    every remaining ticker this tick would fail identically -- so that case
+    alerts once and stops the run early instead of burning through the rest
+    of the watchlist on calls that can't succeed.
     """
     notifier = _get_notifier()
     watchlist = get_watchlist()
@@ -73,7 +77,14 @@ def run_watchlist_check(
                 notify_report_ready(notifier, report, report_id)
                 notify_flagged_claims(notifier, report, report_id)
             analyzed.append(ticker)
-        except Exception:
+            clear_credit_alert()
+        except Exception as e:
+            if is_insufficient_credit_error(e):
+                alert_credit_exhausted(notifier)
+                remaining = watchlist[watchlist.index(ticker):]
+                skipped.extend(remaining)
+                break
+
             logger.exception("Failed to analyze %s during scheduled run", ticker)
             skipped.append(ticker)
 
