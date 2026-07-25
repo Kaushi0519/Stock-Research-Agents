@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 
 from src.agents.analysis_agent import analyze_ticker, render_report
 from src.agents.critic_agent import critique_report
+from src.agents.errors import alert_credit_exhausted, clear_credit_alert, is_insufficient_credit_error
 from src.config import NTFY_TOPIC
 from src.notifications.events import notify_flagged_claims, notify_report_ready
 from src.notifications.notifier import NtfyNotifier
@@ -25,12 +26,31 @@ def _get_notifier() -> NtfyNotifier | None:
 
 def _run_analysis(ticker: str) -> int:
     """Shared by the page route and the JSON API route: run the full
-    pipeline, persist, and notify. Returns the new report's id."""
-    report = analyze_ticker(ticker)
-    report = critique_report(report)
+    pipeline, persist, and notify. Returns the new report's id.
+
+    Raises HTTPException(503) with a clear message if the Anthropic API is
+    rejecting calls for insufficient credit specifically -- rather than
+    letting that surface as an opaque 500, since "you're out of API
+    credit" has an obvious, actionable fix a generic error message hides.
+    """
+    notifier = _get_notifier()
+
+    try:
+        report = analyze_ticker(ticker)
+        report = critique_report(report)
+    except Exception as e:
+        if is_insufficient_credit_error(e):
+            alert_credit_exhausted(notifier)
+            raise HTTPException(
+                status_code=503,
+                detail="Anthropic API credit balance is too low. Add credits at "
+                "console.anthropic.com, then try again.",
+            )
+        raise
+
+    clear_credit_alert()
     report_id = db.save_report(report)
 
-    notifier = _get_notifier()
     if notifier:
         notify_report_ready(notifier, report, report_id)
         notify_flagged_claims(notifier, report, report_id)

@@ -117,6 +117,22 @@ def test_api_create_report_runs_pipeline_and_notifies(monkeypatch):
     mock_notify_flagged.assert_called_once()
 
 
+def test_api_create_report_returns_503_on_credit_exhaustion(monkeypatch):
+    def _raise(ticker):
+        raise Exception("credit balance too low")
+
+    monkeypatch.setattr(main, "analyze_ticker", _raise)
+    monkeypatch.setattr(main, "is_insufficient_credit_error", lambda e: True)
+    mock_alert = MagicMock()
+    monkeypatch.setattr(main, "alert_credit_exhausted", mock_alert)
+
+    response = client.post("/api/reports/aapl")
+
+    assert response.status_code == 503
+    assert "credit" in response.json()["detail"].lower()
+    mock_alert.assert_called_once()
+
+
 def test_api_watchlist_crud(monkeypatch):
     added = []
     removed = []
