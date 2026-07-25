@@ -7,7 +7,7 @@ from src.rag.ingest import ingest_ticker
 from src.rag.store import get_collection, query
 from src.tools.price_data import get_price_history
 
-MODEL = "claude-sonnet-5"
+MODEL = "claude-haiku-4-5"
 
 SYSTEM_PROMPT = """You are a stock research analysis agent. You will be given:
 1. Structured price performance data for a ticker.

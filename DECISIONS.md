@@ -1,3 +1,21 @@
+## Analysis + Critic Agents switched from Sonnet 5 to Haiku 4.5, for cost
+Explicit user decision, made with the tradeoff understood: this reverses the
+earlier Phase 3 choice ("Sonnet for the Analysis Agent, Haiku for data
+collection... since citation/grounding judgment calls are the actual core
+value of this project"). Haiku is meaningfully less capable at nuanced
+verification in general, so this is a real quality-for-cost tradeoff, not a
+free win -- but it's the user's project and budget to make that call on.
+
+Spot-checked rather than left unverified: the full real-model critic eval
+(4 judgment cases -- directly-supported, contradicted, plausible-but-unstated,
+overreach-beyond-evidence) still passes under Haiku, and a real end-to-end
+run against live AAPL data produced a sensible result (16 claims, 1 correctly
+flagged for citing sector-wide news that named different tickers, not Apple
+specifically). This is a lighter validation than the original Sonnet
+decision had -- one real run plus the existing eval suite, not extended
+real-world use -- worth re-evaluating if report or critic quality seems to
+degrade with actual use over time.
+
 ## Anthropic credit-exhaustion: detect specifically, alert once, re-arm on recovery
 Prior behavior when the prepaid API balance hit $0: the scheduler caught the
 resulting exception generically, logged it, and silently kept "running"

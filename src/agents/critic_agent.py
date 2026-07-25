@@ -4,7 +4,7 @@ import anthropic
 
 from src.config import ANTHROPIC_API_KEY
 
-MODEL = "claude-sonnet-5"
+MODEL = "claude-haiku-4-5"
 
 SYSTEM_PROMPT = """You are a fact-checking critic for stock research reports.
 
