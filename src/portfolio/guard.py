@@ -4,7 +4,10 @@ At import time, `enforce_read_only()` monkey-patches every function in
 `robin_stocks.robinhood` whose name matches a write/order/cancel pattern --
 across the `orders`, `options`, and `crypto` submodules -- replacing each
 with a stub that raises `ReadOnlyViolation` instead of calling Robinhood's
-API. This means a coding mistake anywhere in this project that calls an
+API. It then replaces every other reference to those same functions
+anywhere in `robin_stocks.robinhood` (notably the top-level re-exports, so
+`rh.order_buy_market` is blocked too, not just `rh.orders.order_buy_market`).
+This means a coding mistake anywhere in this project that calls an
 order-placing function fails loudly and immediately, instead of silently
 placing a real trade.
 
@@ -56,8 +59,13 @@ def enforce_read_only() -> int:
     if _patched:
         return 0
 
+    import sys
+
     import robin_stocks.robinhood as rh
 
+    # Original function object -> its blocking stub. Keyed by identity so the
+    # alias sweep below can find every other name bound to the same function.
+    stubs = {}
     patched_count = 0
     for submodule_name in _GUARDED_SUBMODULES:
         submodule = getattr(rh, submodule_name, None)
@@ -74,8 +82,29 @@ def enforce_read_only() -> int:
             if not callable(attr):
                 continue
 
-            setattr(submodule, attr_name, _blocked(f"{submodule_name}.{attr_name}"))
+            if attr not in stubs:
+                stubs[attr] = _blocked(f"{submodule_name}.{attr_name}")
+            setattr(submodule, attr_name, stubs[attr])
             patched_count += 1
+
+    # `robin_stocks.robinhood` re-exports these via `from .orders import *`,
+    # so `rh.order_buy_market` is a separate reference to the *original*
+    # function -- patching `rh.orders` alone leaves it live. Sweep the package
+    # and every loaded submodule for any remaining reference to an original.
+    package_modules = [
+        module for name, module in list(sys.modules.items())
+        if module is not None
+        and (name == rh.__name__ or name.startswith(rh.__name__ + "."))
+    ]
+    for module in package_modules:
+        for attr_name, attr in list(vars(module).items()):
+            try:
+                stub = stubs.get(attr)
+            except TypeError:  # unhashable attribute, can't be a function
+                continue
+            if stub is not None:
+                setattr(module, attr_name, stub)
+                patched_count += 1
 
     _patched = True
     return patched_count
