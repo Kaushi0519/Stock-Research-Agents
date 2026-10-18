@@ -151,9 +151,9 @@ Documented honestly, because a tool like this is only useful if you know where t
 
 ## Testing
 
-114 tests, `pytest`. Notably:
+143 tests, `pytest`. Notably:
 - The Critic Agent's claim-verification logic is checked with a real-model eval against known right answers (`tests/test_critic_eval.py`), not just mocked wiring tests
-- The Robinhood read-only guarantee is checked by asserting every real write function in the installed library actually raises, and every real read function stays callable (`tests/test_portfolio_guard.py`)
+- The Robinhood read-only guarantee is checked by asserting every real write function in the installed library actually raises — via both `rh.orders.*` and the top-level `rh.*` re-exports — that no module in the package still exposes an unpatched write function, and that every real read function stays callable (`tests/test_portfolio_guard.py`)
 - Notification threshold logic is checked at exact boundaries (at/above/below threshold, both directions) specifically to guard against false-alarm spam (`tests/test_significance.py`, `tests/test_events.py`)
 - The RAG retrieval eval (`src/rag/eval.py`) runs against real ingested data with keyword-verified recall@k, not synthetic fixtures
 

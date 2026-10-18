@@ -182,6 +182,19 @@ obvious bug to fix; a missed write function is not recoverable after the
 fact. Verified with parametrized tests asserting real write functions raise
 and real read functions remain unpatched.
 
+**Gap found and fixed later:** `robin_stocks.robinhood` re-exports every
+order function at the top level (`from .orders import *`), so
+`rh.order_buy_market` was a second reference to the *original* function --
+patching `rh.orders` alone left the most common call style completely live
+(the original tests only exercised `rh.orders.*`, so they didn't catch it).
+The guard now also sweeps the package and every loaded
+`robin_stocks.robinhood.*` module, replacing any remaining reference to an
+original write function (matched by object identity, not name) with the same
+stub. Added tests calling the top-level names directly, plus an exhaustive
+test that fails if any module in the package still exposes an unpatched
+order/cancel/buy/sell function. Confirmed those tests fail against the old
+guard before passing against the new one.
+
 ## Portfolio integration degrades silently, doesn't hard-fail the pipeline
 `get_portfolio_context_for_ticker` catches all failures (missing
 credentials, login failure, network error) and returns `None` rather than
